@@ -39,7 +39,14 @@ SEC("kprobe/sys_write")
 int kprobe__sys_write(struct pt_regs *ctx)
 {
     u32 pid = bpf_get_current_pid_tgid();
-    int fd = PT_REGS_PARM1(ctx);
+    int fd;
+    #if defined(__aarch64__)
+        bpf_probe_read(&fd, sizeof(fd), (void*)ctx->regs[0]);
+    #elif defined(__x86_64__)
+        bpf_probe_read(&fd, sizeof(fd), (void*)ctx->di);
+    #else
+        #error "Unsupported platform"
+    #endif
 
     u64 zero = 0, *val;
     val = bpf_map_lookup_elem(&write_map, &pid);
@@ -53,7 +60,13 @@ int kprobe__sys_write(struct pt_regs *ctx)
     }
 
     char msg[256];
-    bpf_probe_read_str(&msg, sizeof(msg), fd);
+    #if defined(__aarch64__)
+        bpf_probe_read_user(&msg, sizeof(msg), (void *)ctx->regs[1]);
+    #elif defined(__x86_64__)
+        bpf_probe_read_user(&msg, sizeof(msg), (void *)ctx->si);
+    #else
+        #error "Unsupported platform"
+    #endif
 
     bpf_trace_printk("pid %d write to fd %d\n", pid, fd);
 
