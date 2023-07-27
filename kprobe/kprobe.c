@@ -40,12 +40,12 @@ int kprobe__sys_write(struct pt_regs *ctx)
 {
     u32 pid = bpf_get_current_pid_tgid();
     int fd;
-    #if defined(__aarch64__)
+    #if defined (__arm64__)|| defined (__aarch64__)
         bpf_probe_read(&fd, sizeof(fd), (void*)ctx->regs[0]);
     #elif defined(__x86_64__)
         bpf_probe_read(&fd, sizeof(fd), (void*)ctx->di);
     #else
-        #error "Unsupported platform"
+        #error "Unsupported platform 1"
     #endif
 
     u64 zero = 0, *val;
@@ -65,7 +65,7 @@ int kprobe__sys_write(struct pt_regs *ctx)
     #elif defined(__x86_64__)
         bpf_probe_read_user(&msg, sizeof(msg), (void *)ctx->si);
     #else
-        #error "Unsupported platform"
+        #error "Unsupported platform 2"
     #endif
 
     bpf_trace_printk("pid %d write to fd %d\n", pid, fd);
