@@ -25,3 +25,28 @@ int kprobe_execve() {
 
 	return 0;
 }
+
+SEC("kprobe/sys_write")
+int kprobe__sys_write(struct pt_regs *ctx)
+{
+    u32 pid = bpf_get_current_pid_tgid();
+    int fd = PT_REGS_PARM1(ctx);
+
+    u64 zero = 0, *val;
+    val = bpf_map_lookup_elem(&write_map, &pid);
+    if (!val) {
+        bpf_map_update_elem(&write_map, &pid, &zero, BPF_ANY);
+        val = bpf_map_lookup_elem(&write_map, &pid);
+        if (!val) {
+            /* failed to insert pid into write_map */
+            return 0;
+        }
+    }
+
+    char msg[256];
+    bpf_probe_read_str(&msg, sizeof(msg), fd);
+
+    bpf_trace_printk("pid %d write to fd %d\n", pid, fd);
+
+    return 0;
+}

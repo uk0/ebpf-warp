@@ -20,6 +20,7 @@ const mapKey uint32 = 0
 func main() {
 
 	// Name of the kernel function to trace.
+	//fn := "sys_write"
 	fn := "sys_execve"
 
 	// Allow the current process to lock memory for eBPF resources.
@@ -38,7 +39,7 @@ func main() {
 	// pre-compiled program. Each time the kernel function enters, the program
 	// will increment the execution counter by 1. The read loop below polls this
 	// map value once per second.
-	kp, err := link.Kprobe(fn, objs.KprobeExecve, nil)
+	kp, err := link.Kprobe(fn, objs.KprobeWrite, nil)
 	if err != nil {
 		log.Fatalf("opening kprobe: %s", err)
 	}
@@ -49,7 +50,7 @@ func main() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	log.Println("Waiting for events..")
+	log.Println("Waiting for data..")
 
 	for range ticker.C {
 		var value uint64
