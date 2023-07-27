@@ -15,13 +15,9 @@ import (
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf kprobe.c -- -I./headers
 
-const mapKey uint32 = 0
-
-func main() {
-
-	// Name of the kernel function to trace.
-	//fn := "sys_write"
-	fn := "sys_execve"
+func sys_write() {
+	const mapKey uint32 = 0
+	fn := "sys_write"
 
 	// Allow the current process to lock memory for eBPF resources.
 	if err := rlimit.RemoveMemlock(); err != nil {
@@ -39,7 +35,7 @@ func main() {
 	// pre-compiled program. Each time the kernel function enters, the program
 	// will increment the execution counter by 1. The read loop below polls this
 	// map value once per second.
-	kp, err := link.Kprobe(fn, objs.KprobeWrite, nil)
+	kp, err := link.Kprobe(fn, objs.KprobeSysWrite, nil)
 	if err != nil {
 		log.Fatalf("opening kprobe: %s", err)
 	}
@@ -59,4 +55,52 @@ func main() {
 		}
 		log.Printf("%s called %d times\n", fn, value)
 	}
+}
+
+func sys_execve() {
+	const mapKey uint32 = 0
+	// Name of the kernel function to trace.
+	fn := "sys_execve"
+
+	// Allow the current process to lock memory for eBPF resources.
+	if err := rlimit.RemoveMemlock(); err != nil {
+		log.Fatal(err)
+	}
+
+	// Load pre-compiled programs and maps into the kernel.
+	objs := bpfObjects{}
+	if err := loadBpfObjects(&objs, nil); err != nil {
+		log.Fatalf("loading objects: %v", err)
+	}
+	defer objs.Close()
+
+	// Open a Kprobe at the entry point of the kernel function and attach the
+	// pre-compiled program. Each time the kernel function enters, the program
+	// will increment the execution counter by 1. The read loop below polls this
+	// map value once per second.
+	kp, err := link.Kprobe(fn, objs.KprobeExecve, nil)
+	if err != nil {
+		log.Fatalf("opening kprobe: %s", err)
+	}
+	defer kp.Close()
+
+	// Read loop reporting the total amount of times the kernel
+	// function was entered, once per second.
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	log.Println("Waiting for event..")
+
+	for range ticker.C {
+		var value uint64
+		if err := objs.KprobeMap.Lookup(mapKey, &value); err != nil {
+			log.Fatalf("reading map: %v", err)
+		}
+		log.Printf("%s called %d times\n", fn, value)
+	}
+}
+
+func main() {
+	//go sys_execve()
+	sys_write()
 }
